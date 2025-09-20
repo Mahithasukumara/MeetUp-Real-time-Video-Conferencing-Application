@@ -6,7 +6,7 @@ const MainLayout = () => {
   return (
     <div className="rounded-md bg-[#FAF7F3]">
       <Header />
-      
+
       <main className="">
         <Outlet />
       </main>

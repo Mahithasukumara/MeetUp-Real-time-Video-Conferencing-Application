@@ -1,10 +1,10 @@
 import { createRouter, createWorker } from "../MediaSoup/MediaSoupConfig.js";
 
 class MediaSoupService {
-  constructor() {
+  constructor({ user }) {
     this.worker = null;
     this.router = null;
-    this.socketToUsers = new Map();
+    this.participents = new Map();
     //   socketId: {
     //     transportId: [],
     //     producerId: [],
@@ -16,6 +16,7 @@ class MediaSoupService {
     this.consumers = new Map();
 
     this.audioLevelObserver = null;
+    this.user = user;
   }
   static async init() {
     if (!this.worker) {
@@ -32,10 +33,19 @@ class MediaSoupService {
   async createProducer() {}
   getProducerById() {}
   getConsumerById() {}
-  async createConsumerForProduer() {}
+  async createConsumerForProducer() {}
   async createConsumersForAllProducers() {}
   getNoOfParticipents() {}
   async cleanUp() {}
+
+  addParticipent(socketId, user) {
+    this.addParticipent.set(socketId, {
+      user,
+      transportsId: [],
+      producersId: [],
+      consumersId: [],
+    });
+  }
 }
 
-export default await new MediaSoupService().init();
+export default new MediaSoupService();

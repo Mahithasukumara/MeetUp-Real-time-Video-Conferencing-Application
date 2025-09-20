@@ -29,7 +29,7 @@ const JoinMeeting = () => {
       }
       return part;
     };
-    const code = `${getPart(3)}-${getPart(3)}-${getPart(4)}`;
+    const code = `${getPart(4)}-${getPart(3)}-${getPart(3)}`;
     if (isCodeValid(code)) {
       return code;
     } else {
