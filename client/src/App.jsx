@@ -1,5 +1,8 @@
 import { Route, Routes } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
+import io from "socket.io-client";
+import { useEffect } from "react";
+import useStore from "./store/store.js";
 import {
   BugReport,
   ContactUs,
@@ -12,6 +15,16 @@ import {
   Meeting,
 } from "./pages/index.js";
 function App() {
+  const setSocket = useStore((state) => state.setSocket);
+
+  useEffect(() => {
+    const socket = io.connect(import.meta.env.VITE_SERVER_URL);
+    setSocket(socket);
+    socket.emit("health_check", ({ status }) =>
+      console.log("health status: ", status)
+    );
+  }, [setSocket]);
+
   return (
     <>
       <Routes>

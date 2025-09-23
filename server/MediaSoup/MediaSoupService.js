@@ -1,7 +1,7 @@
 import { createRouter, createWorker } from "../MediaSoup/MediaSoupConfig.js";
 
 class MediaSoupService {
-  constructor({ user }) {
+  constructor(user) {
     this.worker = null;
     this.router = null;
     this.participents = new Map();

@@ -1,8 +1,11 @@
-import { Store } from "./store.js";
+import { Store } from "../store/store.js";
 import isValidFormat from "../utilities/validcode.utility.js";
 import MediaSoupService from "../MediaSoup/MediaSoupService.js";
 const meetHandler = (io) => {
   io.on("connection", (socket) => {
+    socket.on("health_check", (callback) => {
+      callback({ status: "ok" });
+    });
     //is meetId valid
     socket.on("is_valid_meetId", ({ meetId }, callback) => {
       for (const key of Store.rooms.keys()) {

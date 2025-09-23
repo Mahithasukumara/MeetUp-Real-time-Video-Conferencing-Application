@@ -1,6 +1,8 @@
+import { Socket } from "socket.io-client";
 import { create } from "zustand";
 
 const useStore = create((set) => ({
+  Socket: null,
   User: { name: "", email: "", meetId: "" },
   Device: null,
   MeetId: null,
@@ -12,6 +14,7 @@ const useStore = create((set) => ({
   Producers: new Map(), // {producerId : producer}
   Consumers: new Map(), // {consumerId : consumer}
 
+  setSocket: (socket) => set((state) => ({ ...state, Socket: socket })),
   setUser: ({ name, email, meetId }) =>
     set((state) => ({ ...state, User: { name, email, meetId } })),
   updateFormMode: (FormMode) => set((state) => ({ ...state, FormMode })),

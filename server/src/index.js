@@ -2,8 +2,7 @@ import express from "express";
 import "dotenv/config";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
-import meetHandler from "../sockets/MeetHandler";
-import chatHandler from "../sockets/ChatHandler";
+import meetHandler from "../sockets/MeetHandler.js";
 
 const app = express();
 
@@ -13,8 +12,7 @@ const io = new Server(server, {
 });
 
 meetHandler(io.of("/meet"));
-chatHandler(io.of("/chat"));
 
-app.listen(process.env.PORT, () =>
+server.listen(process.env.PORT, () =>
   console.log(`server is up and running at PORT : ${process.env.PORT}`)
 );
