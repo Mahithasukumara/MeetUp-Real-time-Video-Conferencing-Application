@@ -1,26 +1,46 @@
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Logo from "../components/Logo";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { FaKey } from "react-icons/fa";
-import useStore from "../store/store";
+import useStore from "../store/store.js";
+import socketPromise from "../utiles/socketPromise.js";
+
 const JoinMeeting = () => {
-  const { code } = useParams();
+  const { meetId } = useParams();
   const navigate = useNavigate();
   // mode: "create" | "join" | "link"
+  const socket = useStore((state) => state.Socket);
   const mode = useStore((state) => state.FormMode);
   const setMode = useStore((state) => state.updateFormMode);
+  const setUser = useStore((state) => state.setUser);
+  const setMeetId = useStore((state) => state.setMeetId);
   const [userDetails, setUserDetails] = useState({
     name: "",
     email: "",
-    meetingCode: "",
+    meetId: "",
   });
   const [error, setError] = useState();
 
-  const isCodeValid = (code) => {
-    return true; // ask backend to check code validity
+  const isCodeValid = async (code) => {
+    try {
+      const { FormMode } = useStore.getState();
+      const { success } = await socketPromise(socket, "is_valid_code", {
+        meetId: code,
+        isCreateMode: FormMode === "create",
+      });
+      if (success) {
+        return true;
+      } else {
+        return false;
+      }
+    } catch (error) {
+      setError(error.message);
+      console.log(error);
+      return false;
+    }
   };
 
-  function generateMeetingCode() {
+  async function generateMeetingCode() {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     const getPart = (length) => {
       let part = "";
@@ -30,7 +50,8 @@ const JoinMeeting = () => {
       return part;
     };
     const code = `${getPart(4)}-${getPart(3)}-${getPart(3)}`;
-    if (isCodeValid(code)) {
+    const isValid = await isCodeValid(code);
+    if (isValid) {
       return code;
     } else {
       return generateMeetingCode();
@@ -38,33 +59,94 @@ const JoinMeeting = () => {
   }
 
   useEffect(() => {
-    if (code) {
-      if (!isCodeValid(code)) {
+    async function checkMeetId() {
+      if (!meetId) return;
+      setMode("link");
+      const isValid = await isCodeValid(meetId);
+      if (!isValid) {
         navigate("/*");
         return;
       }
-      setMode("link");
-      setUserDetails((prev) => ({ ...prev, meetingCode: code }));
-    }
-  }, [code, mode]);
 
-  const handleSubmit = (e) => {
+      setUserDetails((prev) => ({ ...prev, meetId }));
+    }
+
+    checkMeetId();
+  }, [meetId, navigate]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     //validate user name
-    if (userDetails.name.length < 3 || userDetails.name.length > 20) {
-      setError("Name must be between 3 and 20 characters.");
+    if (userDetails.name.length < 3 || userDetails.name.length > 100) {
+      setError("Name must be between 3 and 100 characters.");
       return;
     }
     if (mode === "create") {
+      const isValid = await isCodeValid(userDetails.meetId);
+      if (!isValid) {
+        setError("invalid meet id");
+        return;
+      }
       setError("");
-      // send meeting creation request here
-      console.log("Creating meeting with:", userDetails);
-      // after that update the meetId in store and navigate to lobby
-    } else if (mode === "join" || mode === "link") {
-      setError("");
-      // send join meeting request here with userDetails..meetingCode
-      console.log("Joining meeting with:", userDetails);
-      // after that update the meetId in store and navigate to lobby
+      try {
+        const { user, success } = await socketPromise(
+          socket,
+          "new_meet",
+          userDetails
+        );
+        setUser({ ...user });
+        setMeetId(user.meetId);
+
+        if (success) {
+          console.log("Creating meeting with:", userDetails);
+          navigate("/lobby");
+          return;
+        }
+      } catch (error) {
+        console.log(error.message);
+      }
+    } else if (mode === "link") {
+      try {
+        setError("");
+        const { user, success } = await socketPromise(
+          socket,
+          "join_meet",
+          userDetails
+        );
+        setUser({ ...user });
+        setMeetId(user.meetId);
+
+        if (success) {
+          console.log("joining meeting with:", userDetails);
+          navigate("/lobby");
+        }
+      } catch (error) {
+        console.log(error);
+      }
+    } else if (mode === "join") {
+      try {
+        if (!userDetails.meetId) {
+          setError("Meeting code is required.");
+          return;
+        }
+        const isValid = await isCodeValid(userDetails.meetId);
+        if (!isValid) {
+          return;
+        }
+        setError("");
+        const { user, success } = await socketPromise(
+          socket,
+          "join_meet",
+          userDetails
+        );
+        setUser({ ...user });
+        setMeetId(user.meetId);
+        if (success) {
+          navigate("/lobby");
+        }
+      } catch (error) {
+        console.log(error);
+      }
     }
   };
 
@@ -115,11 +197,11 @@ const JoinMeeting = () => {
                 type="text"
                 placeholder="Meeting Code"
                 name="meetingCode"
-                value={userDetails.meetingCode}
+                value={userDetails.meetId}
                 onChange={(e) =>
                   setUserDetails({
                     ...userDetails,
-                    meetingCode: e.target.value,
+                    meetId: e.target.value,
                   })
                 }
                 required
@@ -132,14 +214,14 @@ const JoinMeeting = () => {
               {mode === "create" && (
                 <button
                   type="button"
-                  onClick={() => {
-                    const newCode = generateMeetingCode();
+                  onClick={async () => {
+                    const newCode = await generateMeetingCode();
                     setUserDetails((prev) => ({
                       ...prev,
-                      meetingCode: newCode,
+                      meetId: newCode,
                     }));
                   }}
-                  className="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600"
+                  className="bg-green-500  text-white px-3 py-2 rounded hover:bg-green-600"
                 >
                   <FaKey color="white" />
                 </button>

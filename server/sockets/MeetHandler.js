@@ -4,17 +4,7 @@ import MediaSoupService from "../MediaSoup/MediaSoupService.js";
 const meetHandler = (io) => {
   io.on("connection", (socket) => {
     socket.on("health_check", (callback) => {
-      callback({ status: "ok" });
-    });
-    //is meetId valid
-    socket.on("is_valid_meetId", ({ meetId }, callback) => {
-      for (const key of Store.rooms.keys()) {
-        if (key === meetId) {
-          callback({ isValid: false });
-          break;
-        }
-      }
-      callback({ isValid: true, meetId });
+      callback({ status: 200 });
     });
     //if it is a create mode then
     // code already has => reply error
@@ -24,26 +14,30 @@ const meetHandler = (io) => {
     socket.on("is_valid_code", ({ meetId, isCreateMode }, callback) => {
       if (!isValidFormat(meetId)) {
         return callback({
-          error: { message: "Invalid Meet Id formate" },
+          error: { message: "Invalid Meet Id format" },
           success: false,
+          status: 400,
         });
       }
       if (isCreateMode) {
         if (Store.rooms.has(meetId)) {
           return callback({
-            error: { message: "Invalid MeetId" },
+            error: { message: "Invalid meet Id" },
             success: false,
+            status: 400,
           });
         }
       } else {
         if (!Store.rooms.has(meetId)) {
+          console.log(meetId, isCreateMode);
           return callback({
-            error: { message: "Invalid MeetId" },
+            error: { message: "Invalid meet Id" },
             success: false,
+            status: 400,
           });
         }
       }
-      return callback({ success: true });
+      return callback({ data: { success: true }, status: 200, success: true });
     });
 
     //create new meet
@@ -52,52 +46,93 @@ const meetHandler = (io) => {
         return callback({
           error: { message: "All fields are required" },
           success: false,
+          status: 400,
         });
       }
       if (!isValidFormat(meetId)) {
         return callback({
           error: { message: "Invalid Meet Id formate" },
           success: false,
+          status: 400,
         });
       }
-      const msService = new MediaSoupService({ name, email, meetId });
-      await msService.init();
-      rooms.set(meetId, msService);
-      return callback({ success: true, user: { name, email, meetId } });
+
+      try {
+        const msService = new MediaSoupService({ name, email, meetId });
+        await msService.init();
+        Store.rooms.set(meetId, msService);
+        socket.join(meetId);
+
+        return callback({
+          success: true,
+          user: { name, email, meetId },
+          status: 200,
+        });
+      } catch (error) {
+        console.log(error);
+        return callback({
+          error: { message: "Internal Server Error" },
+          success: false,
+          status: 500,
+        });
+      }
     });
 
     //join a meet by id
     socket.on("join_meet", async ({ name, email, meetId }, callback) => {
-      if (!name || !email || !meetId) {
-        return callback({
-          error: { message: "All fields are required" },
-          success: false,
-        });
-      }
+      try {
+        if (!name || !email || !meetId) {
+          return callback({
+            error: { message: "All fields are required" },
+            success: false,
+            status: 400,
+          });
+        }
+        if (!isValidFormat(meetId)) {
+          return callback({
+            error: { message: "Invalid Meet Id formate" },
+            success: false,
+            status: 400,
+          });
+        }
 
-      if (!isValidFormat(meetId)) {
-        return callback({
-          error: { message: "Invalid Meet Id formate" },
-          success: false,
-        });
-      }
+        const msService = Store.rooms.get(meetId);
+        if (!msService) {
+          return callback({
+            error: { message: "Invalid Meet Id" },
+            success: false,
+            status: 400,
+          });
+        }
 
-      const msService = Store.rooms.get(meetId);
-      if (!msService) {
+        msService.addParticipent(socket.id, { name, email, meetId });
+        const user = msService.participents.get(socket.id);
+        if (!user) {
+          return callback({
+            error: { message: "something went wrong" },
+            success: false,
+            status: 400,
+          });
+        }
+        socket.join(meetId);
+        socket.broadcast.to(meetId).emit("new_participent", {
+          user: { ...user },
+          success: true,
+          status: 200,
+        });
         return callback({
-          error: { message: "Invalid Meet Id" },
+          success: true,
+          user: { name, email, meetId },
+          status: 200,
+        });
+      } catch (error) {
+        console.log(error);
+        return callback({
+          error: { message: "Internal Server Error" },
           success: false,
+          status: 500,
         });
       }
-      msService.addParticipent(socket.id, { name, email, meetId });
-      const { user } = msService.participents.get(socket.Id);
-      if (!user) {
-        return callback({
-          error: { message: "something went wrong" },
-          success: false,
-        });
-      }
-      return callback({ success: true });
     });
 
     //rtp capabilities

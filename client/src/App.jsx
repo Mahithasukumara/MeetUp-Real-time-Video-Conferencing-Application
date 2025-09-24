@@ -38,7 +38,7 @@ function App() {
         </Route>
 
         <Route path="/lobby" element={<Lobby />} />
-        <Route path="/join-meeting/:code?" element={<JoinMeeting />} />
+        <Route path="/join-meeting/:meetId?" element={<JoinMeeting />} />
         <Route path="/meeting" element={<Meeting />} />
 
         <Route path="*" element={<h1>404 Not Found</h1>} />

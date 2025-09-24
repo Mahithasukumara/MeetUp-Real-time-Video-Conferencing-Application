@@ -9,7 +9,7 @@ class MediaSoupService {
     //     transportId: [],
     //     producerId: [],
     //     consumersId: [],
-    //     user: { email: '', name: '', room: '' }
+    //     user: { email: '', name: '', meetId: '' }
     //   }
     this.transports = new Map();
     this.producers = new Map();
@@ -18,7 +18,7 @@ class MediaSoupService {
     this.audioLevelObserver = null;
     this.user = user;
   }
-  static async init() {
+  async init() {
     if (!this.worker) {
       this.worker = await createWorker();
     }
@@ -39,7 +39,7 @@ class MediaSoupService {
   async cleanUp() {}
 
   addParticipent(socketId, user) {
-    this.addParticipent.set(socketId, {
+    this.participents.set(socketId, {
       user,
       transportsId: [],
       producersId: [],
@@ -48,4 +48,4 @@ class MediaSoupService {
   }
 }
 
-export default new MediaSoupService();
+export default MediaSoupService;

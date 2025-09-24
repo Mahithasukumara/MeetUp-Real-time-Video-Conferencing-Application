@@ -1,8 +1,7 @@
-import { Socket } from "socket.io-client";
 import { create } from "zustand";
-
+import io from "socket.io-client";
 const useStore = create((set) => ({
-  Socket: null,
+  Socket: io.connect(import.meta.env.VITE_SERVER_URL),
   User: { name: "", email: "", meetId: "" },
   Device: null,
   MeetId: null,
