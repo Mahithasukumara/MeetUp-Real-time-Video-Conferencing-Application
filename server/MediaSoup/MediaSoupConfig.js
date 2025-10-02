@@ -43,7 +43,7 @@ const createRouter = async (worker) => {
   ];
   try {
     const router = await worker.createRouter({ mediaCodecs });
-    console.log("router created" + router.id);
+    console.log("router created : " + router.id);
     return router;
   } catch (error) {
     console.log("error while creating router:createRouter" + error);

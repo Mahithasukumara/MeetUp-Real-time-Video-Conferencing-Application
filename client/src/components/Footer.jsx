@@ -1,6 +1,6 @@
 import React from 'react';
 import wave from "../assets/wave2.svg";
-
+import Button from "./Button"
 function Footer() {
   return (
     <footer className="bg-transparent w-full -mt-49">
