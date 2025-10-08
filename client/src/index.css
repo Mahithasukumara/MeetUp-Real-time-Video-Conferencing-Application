@@ -6,4 +6,49 @@ body,html {
   margin: 0;
   padding: 0;
   background-color: #FAF7F3;
+  height: 100vh;
+}
+
+.carousel{
+  display: flex;
+  gap: 0.5em;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  anchor-name: --carousel;
+  scroll-snap-type: x mandatory;
+}
+
+.carousel::-webkit-scrollbar{
+  display: none;
+}
+
+.carousel::scroll-button(right),.carousel::scroll-button(left) {
+  content: '⇨';
+  border: none;
+  background-color: #1F7D53;
+  color: #E1EEBC;
+  font-size: 1.5rem;
+  padding: .4rem .6rem;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+  position: fixed;
+  position-anchor: --carousel;
+  position-area: right center;
+  translate: -70%;
+}
+.carousel::scroll-button(left){
+  content: '⇦';
+  position-area: left center;
+  translate: 70%;
+}
+.carousel::scroll-button(right):disabled,
+.carousel::scroll-button(left):disabled{
+  opacity: 0.5;
+  cursor: auto;
+}
+
+.card{
+    scroll-snap-type: start;
 }

@@ -7,7 +7,7 @@ const useStore = create((set) => ({
   ActiveParticipent: "",
   Producers: new Map(), // {producerId : producer}
   Consumers: new Map(), // {consumerId : consumer}
-  MeetMode: "gallery", // gallery, present
+  MeetMode: "present", // gallery, present
 
   updateMeetMode: (MeetMode) => set((state) => ({ ...state, MeetMode })),
   updateActivePerson: (socketId) =>
@@ -67,3 +67,5 @@ const useStore = create((set) => ({
       return { ...state, Consumers: map };
     }),
 }));
+
+export default useStore;

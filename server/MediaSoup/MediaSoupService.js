@@ -8,15 +8,16 @@ class MediaSoupService {
     //   socketId: {
     //     transportId: [],
     //     producerId: [],
-    //     consumersId: [],
+    //     consumerId: [],
     //     user: { email: '', name: '', meetId: '' }
     //   }
     this.transports = new Map();
     this.producers = new Map();
     this.consumers = new Map();
 
-    this.audioLevelObserver = null;
+    this.audioObserver = null;
     this.user = user;
+    this.lastVolumes = null;
   }
   async init() {
     if (!this.worker) {
@@ -25,18 +26,185 @@ class MediaSoupService {
     if (!this.router) {
       this.router = await createRouter(this.worker);
     }
+    this.audioObserver = await this.router.createAudioLevelObserver({
+      threshold: -50,
+      maxEntries: 1,
+      interval: 200,
+    });
+    this.audioObserver.on("volumes", (volumes) => {
+      this.lastVolumes = volumes;
+    });
+    this.audioObserver.on("silence", () => {
+      this.lastVolumes = null;
+    });
   }
-  async createWebRtcRouter() {}
-  async createTransport() {}
-  async connectTransport() {}
-  getTransportById() {}
-  async createProducer() {}
-  getProducerById() {}
-  getConsumerById() {}
-  async createConsumerForProducer() {}
-  async createConsumersForAllProducers() {}
-  getNoOfParticipents() {}
-  async cleanUp() {}
+  async createWebRtcTransport({ socketId, direction }) {
+    const transport = await this.router.createWebRtcTransport({
+      listenIps: [
+        { ip: "0.0.0.0", announcedIp: process.env.MEDIASOUP_ANOUNCED_IP },
+      ],
+      enableUdp: true,
+      enableTcp: true,
+      preferTcp: true,
+      appData: {
+        socketId,
+        direction,
+      },
+    });
+
+    transport.on("dtlsstatechange", (dtlsState) => {
+      if (dtlsState === "closed") {
+        transport.close();
+      }
+    });
+
+    transport.on("close", () => {
+      console.log("Transport closed", transport.id);
+      const peer = this.participents.get(socketId);
+      const indexToDel = peer.transportId.indexOf(transport.id);
+      if (indexToDel != -1) peer.transportId.splice(indexToDel, 1);
+
+      this.transports.delete(transport.id);
+    });
+
+    return transport;
+  }
+  async createTransport({ socketId, direction }) {
+    const transport = await this.createWebRtcTransport({ socketId, direction });
+    this.participents.get(socketId).transportId.push(transport.id);
+    this.transports.set(transport.id, transport);
+    return transport;
+  }
+  async connectTransport({ dtlsParameters, transportId }) {
+    const transport = this.transports.get(transportId);
+    await transport.connect({ dtlsParameters });
+    return;
+  }
+  async createProducer({ kind, rtpParameters, transportId, socketId }) {
+    const transport = this.transports.get(transportId);
+    const peer = this.participents.get(socketId);
+    const producer = await transport.produce({
+      kind,
+      rtpParameters,
+      appData: { peerId: socketId, kind },
+    });
+    producer.on("transportclose", () => {
+      console.log("transport close");
+      producer.close();
+    });
+    producer.on("close", () => {
+      console.log("producer closed");
+      const indexToDel = peer.producerId.indexOf(producer.id);
+      if (indexToDel != -1) peer.producerId.splice(indexToDel, 1);
+    });
+    peer.produderId.push(producer.id);
+    this.producers.set(producer.id, producer);
+    if (producer.kind == "audio") this.audioObserver.addProducer(producer);
+    return producer;
+  }
+  async createConsumerForProducer({
+    transportId,
+    producerId,
+    rtpCapabilities,
+  }) {
+    if (!this.router.canConsume({ rtpCapabilities, producerId, socketId }))
+      return;
+    const peer = this.participents.get(socketId);
+    const transport = this.transports.get(transportId);
+    if (!transport) return;
+    const { peerId } = this.producers.get(producerId).appData;
+    const consumer = await transport.consume({
+      producerId,
+      rtpCapabilities,
+      paused: false,
+      appData: {
+        consumerPeerId: socketId,
+        producerPeerId: peerId,
+      },
+    });
+    consumer.on("transportclose", () => {
+      consumer.close();
+    });
+    consumer.on("producerclose", () => {
+      consumer.close();
+    });
+    consumer.on("close", () => {
+      this.consumers.delete(consumer.id);
+      const indexToDel = peer.consumerId.indexOf(consumer.id);
+      if (indexToDel != -1) peer.consumerId.splice(indexToDel, 1);
+    });
+
+    peer.consumerId.push(consumer.id);
+    this.consumers.set(consumer.id, consumer);
+    return consumer;
+  }
+  async createConsumersForAllProducers({
+    transportId,
+    rtpCapabilities,
+    socketId,
+  }) {
+    const peer = this.participents.get(socketId);
+    const transport = this.transports.get(transportId);
+    const consumersSet = [];
+
+    for (const [producerId, producer] of this.producers) {
+      if (producer.appData.peerId === socketId) continue;
+      const consumer = await transport.consume({
+        producerId,
+        rtpCapabilities,
+        paused: false,
+        appData: {
+          consumerPeerId: socketId,
+          producerPeerId: producer.appData.peerId,
+        },
+      });
+      consumer.on("transportclose", () => {
+        consumer.close();
+      });
+      consumer.on("producerclose", () => {
+        consumer.close();
+      });
+      consumer.on("close", () => {
+        this.consumers.delete(consumer.id);
+        const indexToDel = peer.consumerId.indexOf(consumer.id);
+        if (indexToDel != -1) peer.consumerId.splice(indexToDel, 1);
+      });
+
+      peer.consumerId.push(consumer.id);
+      this.consumers.set(consumer.id, consumer);
+      consumersSet.push({
+        producerId,
+        consumerId: consumer.id,
+        kind: consumer.kind,
+        rtpParameters: consumer.rtpParameters,
+        appData: consumer.appData,
+      });
+    }
+
+    return consumersSet;
+  }
+  getNoOfParticipents() {
+    return this.participents.size;
+  }
+  getParticipents() {
+    const participents = [];
+    for (const [socketId, peer] of this.participents) {
+      participents.push({ ...peer, socketId });
+    }
+    return participents;
+  }
+  async cleanUp({ socketId }) {
+    //close consumers
+    const peer = this.participents.get(socketId);
+    for (const transportId in peer.transportId) {
+      const transport = this.transports.get(transportId);
+      transport.close();
+      this.transports.delete(transportId);
+    }
+    const user = peer.user;
+    this.participents.delete(socketId);
+    return user;
+  }
 
   addParticipent(socketId, user) {
     this.participents.set(socketId, {
@@ -45,6 +213,10 @@ class MediaSoupService {
       producersId: [],
       consumersId: [],
     });
+  }
+  getActiveSpeaker() {
+    if (!this.lastVolumes || this.lastVolumes.length === 0) return null;
+    return lastVolumes[0].producer.appData.peerId;
   }
 }
 

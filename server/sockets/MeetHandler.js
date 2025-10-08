@@ -2,6 +2,13 @@ import { Store } from "../store/store.js";
 import isValidFormat from "../utilities/validcode.utility.js";
 import MediaSoupService from "../MediaSoup/MediaSoupService.js";
 const meetHandler = (io) => {
+  setInterval(() => {
+    for (const [meetId, MediaSoupObj] of Store.rooms) {
+      const activeSpeaker = MediaSoupObj.getActiveSpeaker() ?? null;
+      io.to(meetId).emit("active_speaker", { socketId: activeSpeaker });
+    }
+  }, 200);
+
   io.on("connection", (socket) => {
     socket.on("health_check", (callback) => {
       callback({ status: 200 });
@@ -61,6 +68,7 @@ const meetHandler = (io) => {
         const msService = new MediaSoupService({ name, email, meetId });
         await msService.init();
         Store.rooms.set(meetId, msService);
+        Store.socketToRoom.set(socket.id, meetId);
         socket.join(meetId);
 
         return callback({
@@ -120,6 +128,7 @@ const meetHandler = (io) => {
           success: true,
           status: 200,
         });
+        Store.socketToRoom.set(socket.id, meetId);
         return callback({
           success: true,
           user: { name, email, meetId },
@@ -166,7 +175,7 @@ const meetHandler = (io) => {
     );
 
     //cleanup
-    socket.on("disconnet", () => {});
+    socket.on("disconnect", () => {});
   });
 };
 
