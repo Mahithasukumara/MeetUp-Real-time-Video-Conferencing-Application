@@ -1,5 +1,6 @@
 import React,{useState,useRef, useEffect} from "react";
-// import { FaVideo,FaVideoSlash,FaMicrophoneAlt ,FaMicrophoneAltSlash   } from "react-icons/fa";
+import 'react-toastify/dist/ReactToastify.css';
+import {ToastContainer,toast,Slide} from 'react-toastify';
 import { IoIosPeople } from "react-icons/io";
 import VoiceVisualizer from "../components/VoiceVisualizer";
 
@@ -9,41 +10,158 @@ const Lobby = () => {
   const [isMicOn,setMicOn]=useState(false);
   const peopleCount=11
   const videoRef=useRef(null)
-  useEffect( ()=>{
+  useEffect(()=>{
     let stream;
-    if(isCameraOn){
-     navigator.mediaDevices.getUserMedia({video:true})
-     .then(s=>{
-      stream=s;
-      if(videoRef.current){
-        videoRef.current.srcObject=stream;
-        console.log("camera on :lobby")
-      }})
-      .catch(err=>{
-        console.log(`error while starting camera : ${error}`)
-      })
-      }
-      else{
-        if (videoRef.current?.srcObject){
-          let tracks=videoRef.current.srcObject.getTracks();
-          tracks.forEach(track=>track.stop());
-          videoRef.current.srcObject=null;
-          console.log("camera off success")
-        }
-        else{
-          console.log("camera off :lobby")
-        }
-      }
-      return ()=>{
-        if(stream){
-          stream.getTracks().forEach(track=>track.stop());
-        }
-      }
+    let camerapermission;
     
+    const handleCameraSettings=async()=>{
+      try{
+         camerapermission=await navigator.permissions.query({name:"camera"});
+            camerapermission.onchange = () => {
+            if (camerapermission.state === "denied") {
+              if (videoRef.current?.srcObject) {
+                videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+                videoRef.current.srcObject = null;
+              }
+              setIsCameraOn(false); 
+            }
+          };
+        if(camerapermission.state==="denied"){
+          if(videoRef.current?.srcObject){
+              videoRef.current.srcObject.getTracks().forEach(track=>track.stop());
+              videoRef.current.srcObject=null;
+            }
+            if(isCameraOn){
+            setIsCameraOn(false);
+            console.log("Camera turned off due to permissions");
+            toast.error("Camera access is blocked in browser settings");
+        return;
+      }        
+        }
+         if(isCameraOn){
+          try{
+          stream=await navigator.mediaDevices.getUserMedia({video:true});
+          if(videoRef.current){
+            videoRef.current.srcObject=stream;
+          }
+            console.log("camera on:lobby");
+            toast.success('Camera is now on!');
+
+        }
+        catch(err){
+          console.log("Error while accessing camera");
+          setIsCameraOn(false);
+          toast.error("Unable to access camera.Please allow permission in browser settings");
+        }
+      }
+      else
+      {
+        if(videoRef.current?.srcObject)
+        {
+          let tracks=videoRef.current.srcObject.getTracks();
+          tracks.forEach((track)=>track.stop());
+          videoRef.current.srcObject=null;
+          console.log("cam turned off;");
+           
+        }
+        }
+    
+      }
+             
+      catch(err){
+        console.log("error in camera settings: "+err);
+        setIsCameraOn(false);
+        toast.error('Failed to turn on camera')
+    
+
+      }
+     
+
+    }
+    handleCameraSettings();
+      return ()=>{
+          if(stream){
+            stream.getTracks().forEach(track=>track.stop());
+          }
+        }
   },[isCameraOn])
+
+  useEffect(()=>{
+    let stream;
+    let micpermission;
+    const handleMicrophoneSettings=async()=>{
+      try{
+         micpermission=await navigator.permissions.query({name:"microphone"});
+            micpermission.onchange = () => {
+            if (micpermission.state === "denied") {
+              if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+              }
+              setMicOn(false); 
+            }
+          };
+        if(micpermission.state==="denied"){
+            if(isMicOn){
+            setMicOn(false);
+            console.log("Microphone turned off due to permissions");
+            toast.error("Microphone access is blocked in browser settings");
+        return;
+      }        
+        }
+         if(isMicOn){
+          try{
+          stream=await navigator.mediaDevices.getUserMedia({audio:true});
+            console.log("Mic on:lobby");
+            toast.success('Microphone is now on!');
+
+        }
+        catch(err){
+          console.log("Error while accessing Microphone");
+          setMicOn(false);
+          toast.error("Unable to access Microphone.Please allow permission in browser settings");
+        }
+      }
+      else
+      {
+        if(stream)
+        {
+         
+          stream.getTracks.forEach((track)=>track.stop());
+          console.log("cam turned off;");
+           
+        }
+        }
+      }
+
+      catch(err){
+        console.log("error in microphone settings: "+err);
+        setMicOn(false);
+        toast.error('Failed to turn on Microphone')
+      }
+
+    }
+    handleMicrophoneSettings();
+      return ()=>{
+          if(stream){
+            stream.getTracks().forEach(track=>track.stop());
+          }
+        }
+  },[isMicOn])
+
+
+  
   return (
      <div>
-     
+     <ToastContainer 
+        position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          closeOnClick
+          pauseOnHover
+          draggable
+          theme="dark"
+          transition={Slide}
+     />
       <div className="flex justify-center items-center bg-gray-100 min-h-screen font-poppins  ">
         <div className="flex flex-col items-center w-full max-w-4xl h-[200] bg-gray-900 text-white rounded-lg shadow-2xl p-4">
              {/* //logo */}
@@ -63,7 +181,8 @@ const Lobby = () => {
                            </button>
                     </div>
                     <div className="flex items-center justify-center w-full h-48 bg-gray-900 border border-gray-300 rounded-md overflow-hidden">
-                      {isCameraOn?(<video ref={videoRef} className="w-full h-full rounded-md object-cover" autoPlay playsInline />):(<p className="text-grey-400">Camera is off</p>)}
+                      {isCameraOn?(<video ref={videoRef} className="w-full h-full rounded-md object-cover" autoPlay playsInline />):
+                      (<p className="text-grey-400 text-center w-full">Camera is off</p>)}
 
                     </div>
 
@@ -76,13 +195,15 @@ const Lobby = () => {
                          <button onClick={()=>setMicOn(!isMicOn)} className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${isMicOn?"bg-green-500":"bg-gray-400"}`}>
                           <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transorm ${isMicOn?"translate-x-6":"translate-x-1"}`}></span>
                            </button>
-                    </div>
-                    <div className="flex items-center justify-center w-full h-48 bg-gray-900 border border-gray-300 rounded-md overflow-hidden">
-                         {isMicOn?(<div className="min-h-screen flex items-center justify-center bg-gray-900">
-      <VoiceVisualizer />
-    </div>):(<p className="text-grey-400">Microphone is not enabled</p>)}
+                          </div>
+                          <div className="flex items-center justify-center w-full h-48 bg-gray-900 border border-gray-300 rounded-md overflow-hidden">
+                        {isMicOn ? (
+                          <VoiceVisualizer className="w-full h-full" />
+                        ) : (
+                          <p className="text-grey-400  text-center w-full">Microphone is not enabled</p>
+                        )}
+                      </div>
 
-                    </div>
                     </div>
 
                   </div>
