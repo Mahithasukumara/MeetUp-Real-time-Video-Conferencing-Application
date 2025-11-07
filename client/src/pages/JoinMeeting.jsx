@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Logo from "../components/Logo";
-import { useParams, useLocation, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { FaKey } from "react-icons/fa";
 import useStore from "../store/store.js";
 import socketPromise from "../utiles/socketPromise.js";

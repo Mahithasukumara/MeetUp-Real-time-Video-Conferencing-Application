@@ -52,3 +52,15 @@ body,html {
 .card{
     scroll-snap-type: start;
 }
+
+
+::-webkit-scrollbar{
+  width:8px;
+}
+::-webkit-scrollbar-track{
+  background: #27391C;
+}
+::-webkit-scrollbar-thumb{
+  background: #1F7D53;
+  border-radius: 10px;
+}

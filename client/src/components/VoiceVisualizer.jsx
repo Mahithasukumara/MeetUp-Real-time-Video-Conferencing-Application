@@ -9,31 +9,36 @@ const VoiceVisualizer = () => {
 
   useEffect(() => {
     // Check if the browser supports the Web Audio API
-    if (typeof window.AudioContext !== 'undefined' || typeof window.webkitAudioContext !== 'undefined') {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    if (
+      typeof window.AudioContext !== "undefined" ||
+      typeof window.webkitAudioContext !== "undefined"
+    ) {
+      audioContextRef.current = new (window.AudioContext ||
+        window.webkitAudioContext)();
     } else {
       console.error("Web Audio API is not supported in this browser.");
       return;
     }
 
-    navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(stream => {
+    navigator.mediaDevices
+      .getUserMedia({ audio: true })
+      .then((stream) => {
         const audioContext = audioContextRef.current;
         const analyser = audioContext.createAnalyser();
         analyser.fftSize = 256;
         const source = audioContext.createMediaStreamSource(stream);
-        
+
         source.connect(analyser);
 
         const bufferLength = analyser.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
-        
+
         analyserRef.current = analyser;
         dataArrayRef.current = dataArray;
-        
+
         draw();
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Error getting microphone access: ", err);
       });
 
@@ -60,7 +65,7 @@ const VoiceVisualizer = () => {
     analyser.getByteFrequencyData(dataArray);
 
     canvasCtx.clearRect(0, 0, width, height);
-    canvasCtx.fillStyle = '#0d0d0d'; // Use a dark background color to match the card
+    canvasCtx.fillStyle = "#0d0d0d"; // Use a dark background color to match the card
     canvasCtx.fillRect(0, 0, width, height);
 
     const barWidth = (width / dataArray.length) * 2;
@@ -68,21 +73,16 @@ const VoiceVisualizer = () => {
 
     for (let i = 0; i < dataArray.length; i++) {
       const barHeight = dataArray[i] / 2;
-      
+
       // Use blue color
-      canvasCtx.fillStyle = '#3B82F6'; 
+      canvasCtx.fillStyle = "#3B82F6";
       canvasCtx.fillRect(x, height - barHeight, barWidth, barHeight);
 
       x += barWidth + 1;
     }
   };
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="w-full h-full"
-    ></canvas>
-  );
+  return <canvas ref={canvasRef} className="w-full h-full"></canvas>;
 };
 
 export default VoiceVisualizer;

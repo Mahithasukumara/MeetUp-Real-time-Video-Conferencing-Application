@@ -5,12 +5,12 @@ const useStore = create((set) => ({
   isCamOn: false,
   isPresenting: false,
   isSideBarOpen: false,
-  isParticipentPanelOpen: false,
+  isParticipantPanelOpen: false,
 
   ToggleMic: () => set((state) => ({ isMicOn: !state.isMicOn })),
-  ToggleParticipentPanel: () =>
+  ToggleParticipantPanel: () =>
     set((state) => ({
-      isParticipentPanelOpen: !state.isParticipentPanelOpen,
+      isParticipantPanelOpen: !state.isParticipantPanelOpen,
     })),
 
   ToggleCam: () => set((state) => ({ isCamOn: !state.isCamOn })),

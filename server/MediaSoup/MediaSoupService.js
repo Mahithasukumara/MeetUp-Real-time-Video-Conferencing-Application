@@ -4,7 +4,7 @@ class MediaSoupService {
   constructor(user) {
     this.worker = null;
     this.router = null;
-    this.participents = new Map();
+    this.participants = new Map();
     //   socketId: {
     //     transportId: [],
     //     producerId: [],
@@ -60,7 +60,7 @@ class MediaSoupService {
 
     transport.on("close", () => {
       console.log("Transport closed", transport.id);
-      const peer = this.participents.get(socketId);
+      const peer = this.participants.get(socketId);
       const indexToDel = peer.transportId.indexOf(transport.id);
       if (indexToDel != -1) peer.transportId.splice(indexToDel, 1);
 
@@ -71,7 +71,7 @@ class MediaSoupService {
   }
   async createTransport({ socketId, direction }) {
     const transport = await this.createWebRtcTransport({ socketId, direction });
-    this.participents.get(socketId).transportId.push(transport.id);
+    this.participants.get(socketId).transportId.push(transport.id);
     this.transports.set(transport.id, transport);
     return transport;
   }
@@ -82,7 +82,7 @@ class MediaSoupService {
   }
   async createProducer({ kind, rtpParameters, transportId, socketId }) {
     const transport = this.transports.get(transportId);
-    const peer = this.participents.get(socketId);
+    const peer = this.participants.get(socketId);
     const producer = await transport.produce({
       kind,
       rtpParameters,
@@ -109,7 +109,7 @@ class MediaSoupService {
   }) {
     if (!this.router.canConsume({ rtpCapabilities, producerId, socketId }))
       return;
-    const peer = this.participents.get(socketId);
+    const peer = this.participants.get(socketId);
     const transport = this.transports.get(transportId);
     if (!transport) return;
     const { peerId } = this.producers.get(producerId).appData;
@@ -136,14 +136,25 @@ class MediaSoupService {
 
     peer.consumerId.push(consumer.id);
     this.consumers.set(consumer.id, consumer);
-    return consumer;
+    return {
+      consumer: {
+        producerId,
+        consumerId: consumer.id,
+        kind: consumer.kind,
+        rtpParameters,
+        appData: {
+          consumerPeerId: socketId,
+          producerPeerId: peerId,
+        },
+      },
+    };
   }
   async createConsumersForAllProducers({
     transportId,
     rtpCapabilities,
     socketId,
   }) {
-    const peer = this.participents.get(socketId);
+    const peer = this.participants.get(socketId);
     const transport = this.transports.get(transportId);
     const consumersSet = [];
 
@@ -183,31 +194,31 @@ class MediaSoupService {
 
     return consumersSet;
   }
-  getNoOfParticipents() {
-    return this.participents.size;
+  getNoOfParticipants() {
+    return this.participants.size;
   }
-  getParticipents() {
-    const participents = [];
-    for (const [socketId, peer] of this.participents) {
-      participents.push({ ...peer, socketId });
+  getParticipants() {
+    const participants = [];
+    for (const [socketId, peer] of this.participants) {
+      participants.push({ ...peer.user, socketId });
     }
-    return participents;
+    return participants;
   }
   async cleanUp({ socketId }) {
     //close consumers
-    const peer = this.participents.get(socketId);
+    const peer = this.participants.get(socketId);
     for (const transportId in peer.transportId) {
       const transport = this.transports.get(transportId);
       transport.close();
       this.transports.delete(transportId);
     }
     const user = peer.user;
-    this.participents.delete(socketId);
+    this.participants.delete(socketId);
     return user;
   }
 
-  addParticipent(socketId, user) {
-    this.participents.set(socketId, {
+  addParticipant(socketId, user) {
+    this.participants.set(socketId, {
       user,
       transportsId: [],
       producersId: [],

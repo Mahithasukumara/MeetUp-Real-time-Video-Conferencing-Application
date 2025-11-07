@@ -68,6 +68,7 @@ const meetHandler = (io) => {
         const msService = new MediaSoupService({ name, email, meetId });
         await msService.init();
         Store.rooms.set(meetId, msService);
+        msService.addParticipent(socket.id, { name, email, meetId });
         Store.socketToRoom.set(socket.id, meetId);
         socket.join(meetId);
 
@@ -147,6 +148,14 @@ const meetHandler = (io) => {
     //rtp capabilities
     socket.on("rtp_capabilities_req", ({ meetId }, callback) => {});
 
+    //participants list
+    socket.on("participants_list", ({ MeetId }, callback) => {
+      const msService = Store.rooms.get(MeetId);
+      if (!msService) return;
+      const participantsList = msService.getParticipants();
+      callback({ participantsList });
+    });
+
     //create transport
     socket.on("create_transport", ({ meetId }, callback) => {});
 
@@ -165,15 +174,84 @@ const meetHandler = (io) => {
     //consume media
     socket.on(
       "consume_media",
-      ({ room, rtpCapabilities, transportId }, callback) => {}
+      async ({ MeetId, rtpCapabilities, transportId }, callback) => {
+        const msService = Store.rooms.get(MeetId);
+        if (!msService) return;
+        const consumerSet = await msService.createConsumersForAllProducers({
+          rtpCapabilities,
+          transportId,
+          socketId: socket.id,
+        });
+
+        callback({ consumerSet });
+      }
     );
 
     //consume new producer
     socket.on(
       "consume_new_producer",
-      ({ transportId, producerId, room, rtpCapabilities }, callback) => {}
+      async (
+        { MeetId, transportId, producerId, rtpCapabilities },
+        callback
+      ) => {
+        const msService = Store.rooms.get(MeetId);
+        if (!msService) return;
+        const consumer = await msService.createConsumerForProducer({
+          transportId,
+          producerId,
+          rtpCapabilities,
+        });
+        callback({ consumer });
+      }
     );
 
+    //Messages
+    socket.on("new_message", ({ type, msg, to, time }, callback) => {
+      if (to === "everyone") {
+        const meetId = Store.socketToRoom.get(socket.id);
+        if (!meetId) {
+          return callback({
+            error: { message: "Invalid meet Id" },
+            success: false,
+            status: 400,
+          });
+        }
+        socket.broadcast.to(meetId).emit("new_message", {
+          type: "Receive",
+          msg,
+          from: Store.rooms.get(meetId).participents.get(socket.id).name,
+          time,
+        });
+
+        callback({ success: true, status: 200 });
+      } else {
+        //to specific user
+        const meetId = Store.socketToRoom.get(socket.id);
+        if (!meetId) {
+          return callback({
+            error: { message: "Invalid meet Id" },
+            success: false,
+            status: 400,
+          });
+        }
+        const msService = Store.rooms.get(meetId);
+        const participent = msService.participents.get(to);
+        if (!participent) {
+          return callback({
+            error: { message: "Invalid user Id" },
+            success: false,
+            status: 400,
+          });
+        }
+        socket.to(to).emit("new_message", {
+          type: "Receive",
+          msg,
+          from: Store.rooms.get(meetId).participents.get(socket.id).name,
+          time,
+        });
+        callback({ success: true, status: 200 });
+      }
+    });
     //cleanup
     socket.on("disconnect", () => {});
   });
