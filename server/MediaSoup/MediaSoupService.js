@@ -80,12 +80,12 @@ class MediaSoupService {
     await transport.connect({ dtlsParameters });
     return;
   }
-  async createProducer({ kind, rtpParameters, transportId, socketId }) {
+  async createProducer({ kind, rtpCapabilities, transportId, socketId }) {
     const transport = this.transports.get(transportId);
     const peer = this.participants.get(socketId);
     const producer = await transport.produce({
       kind,
-      rtpParameters,
+      rtpCapabilities,
       appData: { peerId: socketId, kind },
     });
     producer.on("transportclose", () => {
@@ -100,7 +100,7 @@ class MediaSoupService {
     peer.produderId.push(producer.id);
     this.producers.set(producer.id, producer);
     if (producer.kind == "audio") this.audioObserver.addProducer(producer);
-    return producer;
+    return { producerId: producer.id };
   }
   async createConsumerForProducer({
     transportId,

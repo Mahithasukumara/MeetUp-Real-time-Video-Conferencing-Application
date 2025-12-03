@@ -16,6 +16,7 @@ const Meeting = () => {
   const MeetMode = useMeetStore((state) => state.MeetMode);
   const device = useStoreStore((state) => state.Device);
   const addParticipant = useMeetStore((state) => state.addParticipant);
+  const updateMedia = useMeetStore((state) => state.updateMedia);
   const isParticipantPanelOpen = useControlBarStore(
     (state) => state.isParticipantPanelOpen
   );
@@ -35,7 +36,10 @@ const Meeting = () => {
   const MeetId = useStoreStore((state) => state.MeetId);
   const isSideBarOpen = useControlBarStore((state) => state.isSideBarOpen);
   const tilesPerPage = isSideBarOpen ? 9 : 12;
+  const isMicOn = useControlBarStore((state) => state.isMicOn);
+  const isCamOn = useControlBarStore((state) => state.isCamOn);
   const [sideBarMode, setSideBarMode] = useState("participants");
+  const addProducer = useMeetStore((state) => state.addProducer);
   const getVideoTileHeight = (noOfTiles) => {
     if (tilesPerPage == 12) {
       if (noOfTiles == 1) return "h-110";
@@ -153,7 +157,59 @@ const Meeting = () => {
       }
     );
   };
-  useEffect(() => {}, []);
+  useEffect(() => {
+    socket.on("new_producer", ({ producerId }) =>
+      consumeByProducerId({ producerId })
+    );
+    return () => {
+      socket.off("new_producer");
+    };
+  }, [socket]);
+  const startCameraAndMicrophone = async () => {
+    try {
+      if (isMicOn) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+        if (!stream) return;
+        const audioTrack = stream.getAudioTracks()[0];
+        updateMedia("camAudio", audioTrack);
+
+        const producer = await Transports.sendTransport.produce({
+          track: audioTrack,
+          appData: { peerId: socket.id, kind: "audio" },
+        });
+
+        addProducer({ producerId: producer.id, producer });
+        console.log("audio enabled");
+      }
+      if (isCamOn) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+        if (!stream) return;
+        const videoTrack = stream.getVideoTracks()[0];
+        updateMedia("cam", videoTrack);
+
+        const producer = await Transports.sendTransport.produce({
+          track: videoTrack,
+          appData: { peerId: socket.id, kind: "video" },
+        });
+
+        addProducer({ producerId: producer.id, producer });
+        console.log("cam enabled");
+      }
+    } catch (err) {
+      console.log("Error starting camera and microphone: ", err);
+    }
+  };
+  const init = async () => {
+    await getAllParticipentsList();
+    await startCameraAndMicrophone();
+  };
+  useEffect(() => {
+    () => init();
+  }, []);
   return (
     <div className="grid grid-cols-12 bg-[#18230F] text-[#E1EEBC]">
       <div
