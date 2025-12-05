@@ -1,7 +1,12 @@
 import { Store } from "../store/store.js";
 import isValidFormat from "../utilities/validcode.utility.js";
 import MediaSoupService from "../MediaSoup/MediaSoupService.js";
-const meetHandler = (io) => {
+import { createWorker, createRouter } from "../MediaSoup/MediaSoupConfig.js";
+let worker;
+let router;
+const meetHandler = async(io) => {
+  worker=await createWorker();
+  router=await createRouter(worker);
   setInterval(() => {
     for (const [meetId, MediaSoupObj] of Store.rooms) {
       const activeSpeaker = MediaSoupObj.getActiveSpeaker() ?? null;
@@ -146,7 +151,33 @@ const meetHandler = (io) => {
     });
 
     //rtp capabilities
-    socket.on("rtp_capabilities_req", ({ meetId }, callback) => {});
+    socket.on("rtp_capabilities_req", ({ meetId }, callback) => {
+      try{
+        if(!router){
+          return callback({
+            error:{message:"Router not initialized"},
+            success:false,
+            status:500
+          })
+        }
+      const rtpCapabilities=router.rtpCapabilities;
+      callback({
+        success:true,
+        data:rtpCapabilities,
+        status:200
+      });
+      }
+      catch(err){
+        console.log("error sending RTP capabilities",err)
+        callback({
+          error:{message:"Failed to get RTP capabilites"},
+          success:false,
+          status:500
+
+        })
+      }
+     
+    });
 
     //participants list
     socket.on("participants_list", ({ MeetId }, callback) => {
