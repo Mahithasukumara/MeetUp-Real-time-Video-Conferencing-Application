@@ -4,9 +4,9 @@ import MediaSoupService from "../MediaSoup/MediaSoupService.js";
 import { createWorker, createRouter } from "../MediaSoup/MediaSoupConfig.js";
 let worker;
 let router;
-const meetHandler = async(io) => {
-  worker=await createWorker();
-  router=await createRouter(worker);
+const meetHandler = async (io) => {
+  worker = await createWorker();
+  router = await createRouter(worker);
   setInterval(() => {
     for (const [meetId, MediaSoupObj] of Store.rooms) {
       const activeSpeaker = MediaSoupObj.getActiveSpeaker() ?? null;
@@ -73,7 +73,7 @@ const meetHandler = async(io) => {
         const msService = new MediaSoupService({ name, email, meetId });
         await msService.init();
         Store.rooms.set(meetId, msService);
-        msService.addParticipent(socket.id, { name, email, meetId });
+        msService.addParticipant(socket.id, { name, email, meetId });
         Store.socketToRoom.set(socket.id, meetId);
         socket.join(meetId);
 
@@ -152,31 +152,31 @@ const meetHandler = async(io) => {
 
     //rtp capabilities
     socket.on("rtp_capabilities_req", ({ meetId }, callback) => {
-      try{
-        if(!router){
+      try {
+        if (!router) {
           return callback({
-            error:{message:"Router not initialized"},
-            success:false,
-            status:500
+            error: { message: "Router not initialized" },
+            success: false,
+            status: 500
           })
         }
-      const rtpCapabilities=router.rtpCapabilities;
-      callback({
-        success:true,
-        data:rtpCapabilities,
-        status:200
-      });
-      }
-      catch(err){
-        console.log("error sending RTP capabilities",err)
+        const rtpCapabilities = router.rtpCapabilities;
         callback({
-          error:{message:"Failed to get RTP capabilites"},
-          success:false,
-          status:500
+          success: true,
+          data: rtpCapabilities,
+          status: 200
+        });
+      }
+      catch (err) {
+        console.log("error sending RTP capabilities", err)
+        callback({
+          error: { message: "Failed to get RTP capabilites" },
+          success: false,
+          status: 500
 
         })
       }
-     
+
     });
 
     //participants list
@@ -188,18 +188,60 @@ const meetHandler = async(io) => {
     });
 
     //create transport
-    socket.on("create_transport", ({ meetId }, callback) => {});
+    socket.on("create_transport", async ({ meetId }, callback) => {
+      const msService = Store.rooms.get(meetId);
+      console.log('create tranport called')
+      const sendTransport = await msService.createTransport({ socketId: socket.id, direction: 'send' });
+      const recvTransport = await msService.createTransport({ socketId: socket.id, direction: 'recv' });
+
+      callback({
+        success: true,
+        sendTransport: {
+          id: sendTransport.id,
+          dtlsParameters: sendTransport.dtlsParameters,
+          iceParameters: sendTransport.iceParameters,
+          iceCandidates: sendTransport.iceCandidates,
+        },
+        recvTransport: {
+          id: recvTransport.id,
+          dtlsParameters: recvTransport.dtlsParameters,
+          iceParameters: recvTransport.iceParameters,
+          iceCandidates: recvTransport.iceCandidates,
+        },
+      })
+    });
 
     //connect transport
     socket.on(
       "connect_transport",
-      ({ dtlsParameters, meetId, transportId }, callback) => {}
+      async ({ dtlsParameters, meetId, transportId }, callback) => {
+        const msService = Store.rooms.get(meetId);
+        await msService.connectTransport({ transportId, dtlsParameters });
+        callback({
+          success: true,
+          status: 200
+        });
+      }
     );
 
     //produce media
     socket.on(
       "produce_media",
-      ({ kind, rtpParameters, room, transportId }, callback) => {}
+      async ({ kind, rtpParameters, meetId, transportId }, callback) => {
+        const msService = Store.rooms.get(meetId);
+        if (!msService) return;
+        const producer = await msService.createProducer({
+          socketId: socket.id,
+          kind,
+          rtpParameters,
+          transportId,
+        });
+        callback({
+          success: true,
+          id: producer.id,
+          status: 200
+        });
+      }
     );
 
     //consume media
@@ -284,7 +326,7 @@ const meetHandler = async(io) => {
       }
     });
     //cleanup
-    socket.on("disconnect", () => {});
+    socket.on("disconnect", () => { });
   });
 };
 
