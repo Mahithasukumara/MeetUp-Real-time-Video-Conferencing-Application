@@ -11,7 +11,7 @@ const useStore = create((set) => ({
   setUser: ({ name, email, meetId }) =>
     set((state) => ({ ...state, User: { name, email, meetId } })),
   updateFormMode: (FormMode) => set((state) => ({ ...state, FormMode })),
-  setDevice: (Device) => set((state) => ({ ...state, Device })),
+  updateDevice: (Device) => set((state) => ({ ...state, Device })),
   setMeetId: (meetId) => set((state) => ({ ...state, MeetId: meetId })),
 }));
 
