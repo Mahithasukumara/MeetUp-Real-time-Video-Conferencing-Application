@@ -6,9 +6,9 @@ class MediaSoupService {
     this.router = null;
     this.participants = new Map();
     //   socketId: {
-    //     transportId: [],
-    //     producerId: [],
-    //     consumerId: [],
+    //     transportIds: [],
+    //     producerIds: [],
+    //     consumerIds: [],
     //     user: { email: '', name: '', meetId: '' }
     //   }
     this.transports = new Map();
@@ -61,8 +61,8 @@ class MediaSoupService {
     transport.on("close", () => {
       console.log("Transport closed", transport.id);
       const peer = this.participants.get(socketId);
-      const indexToDel = peer.transportId.indexOf(transport.id);
-      if (indexToDel != -1) peer.transportId.splice(indexToDel, 1);
+      const indexToDel = peer.transportIds.indexOf(transport.id);
+      if (indexToDel != -1) peer.transportIds.splice(indexToDel, 1);
 
       this.transports.delete(transport.id);
     });
@@ -71,7 +71,7 @@ class MediaSoupService {
   }
   async createTransport({ socketId, direction }) {
     const transport = await this.createWebRtcTransport({ socketId, direction });
-    this.participants.get(socketId).transportId.push(transport.id);
+    this.participants.get(socketId).transportIds.push(transport.id);
     this.transports.set(transport.id, transport);
     return transport;
   }
@@ -80,12 +80,12 @@ class MediaSoupService {
     await transport.connect({ dtlsParameters });
     return;
   }
-  async createProducer({ kind, rtpCapabilities, transportId, socketId }) {
+  async createProducer({ kind, rtpParameters, transportId, socketId }) {
     const transport = this.transports.get(transportId);
     const peer = this.participants.get(socketId);
     const producer = await transport.produce({
       kind,
-      rtpCapabilities,
+      rtpParameters,
       appData: { peerId: socketId, kind },
     });
     producer.on("transportclose", () => {
@@ -94,10 +94,10 @@ class MediaSoupService {
     });
     producer.on("close", () => {
       console.log("producer closed");
-      const indexToDel = peer.producerId.indexOf(producer.id);
-      if (indexToDel != -1) peer.producerId.splice(indexToDel, 1);
+      const indexToDel = peer.producerIds.indexOf(producer.id);
+      if (indexToDel != -1) peer.producerIds.splice(indexToDel, 1);
     });
-    peer.produderId.push(producer.id);
+    peer.producerIds.push(producer.id);
     this.producers.set(producer.id, producer);
     if (producer.kind == "audio") this.audioObserver.addProducer(producer);
     return { producerId: producer.id };
@@ -130,8 +130,8 @@ class MediaSoupService {
     });
     consumer.on("close", () => {
       this.consumers.delete(consumer.id);
-      const indexToDel = peer.consumerId.indexOf(consumer.id);
-      if (indexToDel != -1) peer.consumerId.splice(indexToDel, 1);
+      const indexToDel = peer.consumerIds.indexOf(consumer.id);
+      if (indexToDel != -1) peer.consumerIds.splice(indexToDel, 1);
     });
 
     peer.consumerId.push(consumer.id);
@@ -177,11 +177,11 @@ class MediaSoupService {
       });
       consumer.on("close", () => {
         this.consumers.delete(consumer.id);
-        const indexToDel = peer.consumerId.indexOf(consumer.id);
-        if (indexToDel != -1) peer.consumerId.splice(indexToDel, 1);
+        const indexToDel = peer.consumerIds.indexOf(consumer.id);
+        if (indexToDel != -1) peer.consumerIds.splice(indexToDel, 1);
       });
 
-      peer.consumerId.push(consumer.id);
+      peer.consumerIds.push(consumer.id);
       this.consumers.set(consumer.id, consumer);
       consumersSet.push({
         producerId,
@@ -220,10 +220,11 @@ class MediaSoupService {
   addParticipant(socketId, user) {
     this.participants.set(socketId, {
       user,
-      transportsId: [],
-      producersId: [],
-      consumersId: [],
+      transportIds: [],
+      producerIds: [],
+      consumersIds: [],
     });
+    console.log("all participents", this.participants);
   }
   getActiveSpeaker() {
     if (!this.lastVolumes || this.lastVolumes.length === 0) return null;
