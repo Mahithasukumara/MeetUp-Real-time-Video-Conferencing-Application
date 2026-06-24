@@ -119,8 +119,8 @@ const meetHandler = async (io) => {
           });
         }
 
-        msService.addParticipent(socket.id, { name, email, meetId });
-        const user = msService.participents.get(socket.id);
+        msService.addParticipant(socket.id, { name, email, meetId });
+        const user = msService.participants.get(socket.id);
         if (!user) {
           return callback({
             error: { message: "something went wrong" },
@@ -129,7 +129,7 @@ const meetHandler = async (io) => {
           });
         }
         socket.join(meetId);
-        socket.broadcast.to(meetId).emit("new_participent", {
+        socket.broadcast.to(meetId).emit("new_participant", {
           user: { ...user },
           success: true,
           status: 200,
@@ -190,7 +190,14 @@ const meetHandler = async (io) => {
     //create transport
     socket.on("create_transport", async ({ meetId }, callback) => {
       const msService = Store.rooms.get(meetId);
-      console.log('create tranport called')
+      if (!msService) {
+        return callback({
+          error: { message: "Session expired or invalid meet ID" },
+          success: false,
+          status: 400,
+        });
+      }
+      console.log('create transport called')
       const sendTransport = await msService.createTransport({ socketId: socket.id, direction: 'send' });
       const recvTransport = await msService.createTransport({ socketId: socket.id, direction: 'recv' });
 
@@ -216,6 +223,13 @@ const meetHandler = async (io) => {
       "connect_transport",
       async ({ dtlsParameters, meetId, transportId }, callback) => {
         const msService = Store.rooms.get(meetId);
+        if (!msService) {
+          return callback({
+            error: { message: "Session expired or invalid meet ID" },
+            success: false,
+            status: 400,
+          });
+        }
         await msService.connectTransport({ transportId, dtlsParameters });
         callback({
           success: true,
@@ -229,7 +243,13 @@ const meetHandler = async (io) => {
       "produce_media",
       async ({ kind, rtpParameters, meetId, transportId }, callback) => {
         const msService = Store.rooms.get(meetId);
-        if (!msService) return;
+        if (!msService) {
+          return callback({
+            error: { message: "Session expired or invalid meet ID" },
+            success: false,
+            status: 400,
+          });
+        }
         const producer = await msService.createProducer({
           socketId: socket.id,
           kind,
@@ -249,7 +269,13 @@ const meetHandler = async (io) => {
       "consume_media",
       async ({ MeetId, rtpCapabilities, transportId }, callback) => {
         const msService = Store.rooms.get(MeetId);
-        if (!msService) return;
+        if (!msService) {
+          return callback({
+            error: { message: "Session expired or invalid meet ID" },
+            success: false,
+            status: 400,
+          });
+        }
         const consumerSet = await msService.createConsumersForAllProducers({
           rtpCapabilities,
           transportId,
@@ -268,11 +294,18 @@ const meetHandler = async (io) => {
         callback
       ) => {
         const msService = Store.rooms.get(MeetId);
-        if (!msService) return;
+        if (!msService) {
+          return callback({
+            error: { message: "Session expired or invalid meet ID" },
+            success: false,
+            status: 400,
+          });
+        }
         const consumer = await msService.createConsumerForProducer({
           transportId,
           producerId,
           rtpCapabilities,
+          socketId: socket.id,
         });
         callback({ consumer });
       }
@@ -280,36 +313,44 @@ const meetHandler = async (io) => {
 
     //Messages
     socket.on("new_message", ({ type, msg, to, time }, callback) => {
+      const meetId = Store.socketToRoom.get(socket.id);
+      if (!meetId) {
+        return callback({
+          error: { message: "Invalid meet Id" },
+          success: false,
+          status: 400,
+        });
+      }
+      const msService = Store.rooms.get(meetId);
+      if (!msService) {
+        return callback({
+          error: { message: "Session expired or invalid meet ID" },
+          success: false,
+          status: 400,
+        });
+      }
+      const currentParticipant = msService.participants.get(socket.id);
+      if (!currentParticipant) {
+        return callback({
+          error: { message: "Current participant not found" },
+          success: false,
+          status: 400,
+        });
+      }
+
       if (to === "everyone") {
-        const meetId = Store.socketToRoom.get(socket.id);
-        if (!meetId) {
-          return callback({
-            error: { message: "Invalid meet Id" },
-            success: false,
-            status: 400,
-          });
-        }
         socket.broadcast.to(meetId).emit("new_message", {
           type: "Receive",
           msg,
-          from: Store.rooms.get(meetId).participents.get(socket.id).name,
+          from: currentParticipant.name,
           time,
         });
 
         callback({ success: true, status: 200 });
       } else {
         //to specific user
-        const meetId = Store.socketToRoom.get(socket.id);
-        if (!meetId) {
-          return callback({
-            error: { message: "Invalid meet Id" },
-            success: false,
-            status: 400,
-          });
-        }
-        const msService = Store.rooms.get(meetId);
-        const participent = msService.participents.get(to);
-        if (!participent) {
+        const participant = msService.participants.get(to);
+        if (!participant) {
           return callback({
             error: { message: "Invalid user Id" },
             success: false,
@@ -319,7 +360,7 @@ const meetHandler = async (io) => {
         socket.to(to).emit("new_message", {
           type: "Receive",
           msg,
-          from: Store.rooms.get(meetId).participents.get(socket.id).name,
+          from: currentParticipant.name,
           time,
         });
         callback({ success: true, status: 200 });

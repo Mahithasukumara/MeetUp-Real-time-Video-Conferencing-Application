@@ -99,15 +99,16 @@ class MediaSoupService {
     });
     peer.producerIds.push(producer.id);
     this.producers.set(producer.id, producer);
-    if (producer.kind == "audio") this.audioObserver.addProducer(producer);
-    return { producerId: producer.id };
+    if (producer.kind == "audio") await this.audioObserver.addProducer({ producerId: producer.id });
+    return producer;
   }
   async createConsumerForProducer({
     transportId,
     producerId,
     rtpCapabilities,
+    socketId,
   }) {
-    if (!this.router.canConsume({ rtpCapabilities, producerId, socketId }))
+    if (!this.router.canConsume({ rtpCapabilities, producerId }))
       return;
     const peer = this.participants.get(socketId);
     const transport = this.transports.get(transportId);
@@ -134,14 +135,14 @@ class MediaSoupService {
       if (indexToDel != -1) peer.consumerIds.splice(indexToDel, 1);
     });
 
-    peer.consumerId.push(consumer.id);
+    peer.consumerIds.push(consumer.id);
     this.consumers.set(consumer.id, consumer);
     return {
       consumer: {
         producerId,
         consumerId: consumer.id,
         kind: consumer.kind,
-        rtpParameters,
+        rtpParameters: consumer.rtpParameters,
         appData: {
           consumerPeerId: socketId,
           producerPeerId: peerId,
@@ -205,11 +206,13 @@ class MediaSoupService {
     return participants;
   }
   async cleanUp({ socketId }) {
-    //close consumers
     const peer = this.participants.get(socketId);
-    for (const transportId in peer.transportId) {
+    if (!peer) return;
+    for (const transportId of peer.transportIds) {
       const transport = this.transports.get(transportId);
-      transport.close();
+      if (transport) {
+        transport.close();
+      }
       this.transports.delete(transportId);
     }
     const user = peer.user;
@@ -222,13 +225,13 @@ class MediaSoupService {
       user,
       transportIds: [],
       producerIds: [],
-      consumersIds: [],
+      consumerIds: [],
     });
-    console.log("all participents", this.participants);
+    console.log("all participants", this.participants);
   }
   getActiveSpeaker() {
     if (!this.lastVolumes || this.lastVolumes.length === 0) return null;
-    return lastVolumes[0].producer.appData.peerId;
+    return this.lastVolumes[0].producer.appData.peerId;
   }
 }
 
