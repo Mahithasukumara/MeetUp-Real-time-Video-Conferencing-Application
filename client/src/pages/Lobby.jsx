@@ -185,7 +185,6 @@ const Lobby = () => {
         setDevice(device);
         console.log("Device created", device);
         updateDevice(device);
-        await setupTransports();
 
       }
       catch (e) {
@@ -193,6 +192,7 @@ const Lobby = () => {
       }
     }
     createDevice();
+    setupTransports();
   }, [rtpCapabilities])
 
   const setupTransports = async () => {
@@ -203,13 +203,15 @@ const Lobby = () => {
         if (!success) {
           console.log("transport not created");
         }
-        console.log('is device exists', device);
-        const sendTransport_ = await device.createSendTransport({
+        console.log('is device exists', Device_);
+        console.log('tranport details here', sendTransport, recvTransport);
+        const sendTransport_ = await Device_.createSendTransport({
           ...sendTransport
         });
-        const receiveTransport = await device.createRecvTransport({
+        const receiveTransport = await Device_.createRecvTransport({
           ...recvTransport,
         })
+        console.log("is transports exits in lobby", sendTransport_, receiveTransport)
         sendTransport_.on("connect", ({ dtlsParameters }, callback) => {
           socket.emit(
             "connect_transport",
@@ -235,7 +237,7 @@ const Lobby = () => {
                 kind,
                 rtpParameters,
                 meetId,
-                transportId: sendTransport_.id,
+                transportId: sendTransport.id,
               },
               ({ id }) => {
                 console.log("Ack from send transport");
