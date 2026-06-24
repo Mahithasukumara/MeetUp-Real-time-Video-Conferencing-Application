@@ -34,6 +34,9 @@ const Lobby = () => {
 
 
   useEffect(() => {
+    if (isCameraOn) {
+      ToggleCam();
+    }
     let stream;
     let camerapermission;
 
@@ -105,6 +108,10 @@ const Lobby = () => {
   }, [isCameraOn]);
 
   useEffect(() => {
+
+    if (isMicOn) {
+      ToggleMic();
+    }
     let stream;
     let micpermission;
     const handleMicrophoneSettings = async () => {
@@ -176,39 +183,20 @@ const Lobby = () => {
     getRouterRtpCapabilities();
   }, [socket]);
 
-  useEffect(() => {
-    const createDevice = async () => {
-      if (!rtpCapabilities) return;
-      try {
-        const device = new Device();
-        await device.load({ routerRtpCapabilities: rtpCapabilities });
-        setDevice(device);
-        console.log("Device created", device);
-        updateDevice(device);
-
-      }
-      catch (e) {
-        console.log(`errror while creating device ${e}`)
-      }
-    }
-    createDevice();
-    setupTransports();
-  }, [rtpCapabilities])
-
-  const setupTransports = async () => {
+  async function setupTransports(deviceInstance) {
     try {
-      if (!socket) return;
+      if (!socket || !deviceInstance) return;
       console.log('am i called setupTransports??');
       socket.emit("create_transport", { meetId }, async ({ success, sendTransport, recvTransport }) => {
         if (!success) {
           console.log("transport not created");
         }
-        console.log('is device exists', Device_);
+        console.log('is device exists', deviceInstance);
         console.log('tranport details here', sendTransport, recvTransport);
-        const sendTransport_ = await Device_.createSendTransport({
+        const sendTransport_ = await deviceInstance.createSendTransport({
           ...sendTransport
         });
-        const receiveTransport = await Device_.createRecvTransport({
+        const receiveTransport = await deviceInstance.createRecvTransport({
           ...recvTransport,
         })
         console.log("is transports exits in lobby", sendTransport_, receiveTransport)
@@ -251,8 +239,8 @@ const Lobby = () => {
           socket.emit(
             "connect_transport",
             {
-              dtlsParameters: receiveTransport.dtlsParameters,
-              transportId: receiveTransport.id,
+              dtlsParameters,
+              transportId: recvTransport.id,
               meetId,
             },
             ({ success, status }) => {
@@ -266,14 +254,29 @@ const Lobby = () => {
         updateTransports("sendTransport", sendTransport_);
         updateTransports("receiveTransport", receiveTransport);
       });
-      socket.emit("",)
-      ToggleCam();
-      ToggleMic();
     }
     catch (error) {
       console.log("error at creating tranports and connecting them", error);
     }
   }
+
+  useEffect(() => {
+    const createDevice = async () => {
+      if (!rtpCapabilities) return;
+      try {
+        const deviceInstance = new Device();
+        await deviceInstance.load({ routerRtpCapabilities: rtpCapabilities });
+        setDevice(deviceInstance);
+        console.log("Device created", deviceInstance);
+        updateDevice(deviceInstance);
+        await setupTransports(deviceInstance);
+      }
+      catch (e) {
+        console.log(`errror while creating device ${e}`)
+      }
+    }
+    createDevice();
+  }, [rtpCapabilities]);
 
   return (
     <div>
